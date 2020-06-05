@@ -10,28 +10,34 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, models, transforms
 import torchvision.ops
 from retinanet.dataloader import CSVDataset, Resizer
+from retinanet import Calc_AP
 
 
 print('CUDA available: {}'.format(torch.cuda.is_available()))
 
 
 def main(args=None):
-    parser = argparse.ArgumentParser(description='Simple training script for training a '
+    parser = argparse.ArgumentParser(description='Simple inference/visualization script for a '
                                                  'RetinaNet network.')
     parser.add_argument('csv_classes', help='Path to file containing class list')
     parser.add_argument('csv_val', help='Path to file containing validation annotations')
     parser.add_argument('model', help='Path to model (.pt) file.')
-    parser.add_argument('outputdir')
-    parser.add_argument('--fullscene', type=bool, default=True)
-    parser.add_argument('--detthresh', help='detection threshold for visualizing', type=float,
-                        default=0.0)
-    parser.add_argument('--score_thresh', help='score threshold to discard background/reduce '
-                        'runs processing time', type=float, default=0.05)
-    parser.add_argument('--iou_nms1', help='iou for nms used during validation and inference',
-                        type=float, default=0.3)
-    parser.add_argument('--iou_nms2', type=float, default=0.5)
+    parser.add_argument('outputdir', help='Output directory')
+    parser.add_argument('--fullscene', type=bool, default=True,
+                        help='If True, don\'t rescale the image.')
+    parser.add_argument('--detthresh', type=float, default=0.0,
+                        help='detection threshold for visualizing')
+    parser.add_argument('--score_thresh', type=float, default=0.05,
+                        help='score threshold to discard background/reduce runs processing time')
+    parser.add_argument('--iou_nms1', type=float, default=0.3,
+                        help='iou for nms used during validation and inference')
+    parser.add_argument('--iou_nms2', type=float, default=0.5,
+                        help='iou for nms used during reconstruction of the image patches')
     parser.add_argument('--pix_overlap', type=int, default=200,
                         help='number of pixel overlapping between patches')
+    parser.add_argument('--evaluate', type=bool, default=False,
+                        help='If csv_val contains truth info, trigger this flag to calculate'
+                             'mAP score at the end.')
 
     args = parser.parse_args()
 
@@ -136,6 +142,7 @@ def main(args=None):
 
         fullscene.save(os.path.join(args.outputdir, '%s.png' % iid))
 
+    _ = Calc_AP(dataloader_val, AllImgsAllDets, iou_threshold=0.5)
 
 
 if __name__ == '__main__':
