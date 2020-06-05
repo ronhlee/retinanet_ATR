@@ -1,25 +1,19 @@
 import numpy as np
 import torchvision
-import time
 import os
-import copy
-import pdb
 import argparse
-import csv
 import warnings
 warnings.filterwarnings('ignore')
-import sys
 from PIL import Image, ImageDraw
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, models, transforms
 import torchvision.ops
-from dataloader import CSVDataset, collater, Resizer, NoResizer, PatchResizer,\
-    AspectRatioBasedSampler, Augmenter
-import model
+from retinanet.dataloader import CSVDataset, Resizer
 
-# assert torch. version .split('.')[1] == '4'
+
 print('CUDA available: {}'.format(torch.cuda.is_available()))
+
 
 def main(args=None):
     parser = argparse.ArgumentParser(description='Simple training script for training a '
@@ -44,15 +38,12 @@ def main(args=None):
     if not os.path.isdir(args.outputdir): os.makedirs(args.outputdir)
 
     if args.fullscene:
-        dataset_val = CSVDataset(train_file=args.csv_val, class_list=args.csv_classes,
-                                 transform=transforms.Compose([NoResizer()]))
+        dataset_val = CSVDataset(train_file=args.csv_val, class_list=args.csv_classes)
     else:
         dataset_val = CSVDataset(train_file=args.csv_val, class_list=args.csv_classes,
                                  transform=transforms.Compose([Resizer()]))
 
-
-    sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
-    dataloader_val = DataLoader(dataset_val, num_workers=1, shuffle=False)  # collate_fn=collater, batch_sampler = sampler_val)
+    dataloader_val = DataLoader(dataset_val, num_workers=1, shuffle=False)
 
     AllImgsAllDets = []
 
@@ -99,20 +90,18 @@ def main(args=None):
                 shifted_anchors[:, [1, 3]] = transformed_anchors[:, [1, 3]].cpu() + \
                                              patchidx // numcol_p * nonoverlap
                 Allbbox = torch.cat((Allbbox, shifted_anchors))
-                idxs = np.where(scores.cpu() > args.detthresh)
 
 
-        # save out detections to numpy file for pre-screener roc curve[0])
+        # save out detections to numpy file
         if list(Allbbox.shape) == [0]:
             np.save(os.path.join(args.outputdir, '%s.npy' % iid), np.zeros((0, 7), dtype=np.float32))
         else:
             Allcenter = torch.cat((torch.mean(Allbbox[:, [0, 2]], dim=1, keepdim=True),
                                    torch.mean(Allbbox[:, [1, 3]], dim=1, keepdim=True)), dim=1)
         anchors_nms_idx = torchvision.ops.nms(Allbbox, Allscore, args.iou_nms2)
+        
         # Alldetections is np array [detection scores, Allcenter, Allclassscore]
-
         Alldetections = np.hstack((Allscore[anchors_nms_idx, None].numpy(),
-                                   # Allcenter[anchors_nms_idx, :].numpy(),
                                    Allbbox[anchors_nms_idx, :].numpy(),
                                    Allclassscore[anchors_nms_idx, :].numpy()))
         np.save(os.path.join(args.outputdir, '%s.npy' % iid), Alldetections)
@@ -130,10 +119,8 @@ def main(args=None):
                                     topscore[topclassification == 1, None]), dim=1)]
         AllImgsAllDets.append(thisImgAllDets)
 
-
         # Visualize the whole scene
-        
-        img = np.array(255* data['img'][0, 0, ...])
+        img = np.array(255 * data['img'][0, 0, ...])
         img[img < 0] = 0
         img[img > 255] = 255
         fullscene = Image.fromarray(img).convert(mode='RGB')

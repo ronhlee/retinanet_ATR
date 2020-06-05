@@ -8,7 +8,7 @@ import torch.optim as optim
 from torchvision import transforms
 from torch.utils.data import DataLoader
 
-import model
+from retinanet import model
 from dataloader import CSVDataset, collater, Resizer, AspectRatioBasedSampler, Augmenter, UnNormalizer, Normalizer
 
 import csv_eval

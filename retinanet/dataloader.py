@@ -6,7 +6,7 @@ import numpy as np
 import random
 import csv
 
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from torchvision import transforms, utils
 from torch.utils.data.sampler import Sampler
 
@@ -14,6 +14,8 @@ import skimage.io
 import skimage.transform
 import skimage.color
 import skimage
+import sarpy.io.complex as cf
+from sarpy.visualization import remap
 
 from PIL import Image
 Image.MAX_IMAGE_PIXELS=None
@@ -106,7 +108,13 @@ class CSVDataset(Dataset):
         return sample
 
     def load_image(self, image_index):
-        img = skimage.io.imread(self.image_names[image_index])
+        img_filename = self.image_names[image_index]
+
+        if os.path.splitext(img_filename)[-1] == 'nitf':
+            cdata = cf.open(img_filename).read_chip()
+            img = remap.density(cdata)
+        else:
+            img = skimage.io.imread(img_filename)
 
         if len(img.shape) == 2:
             img = img[..., np.newaxis]
@@ -254,18 +262,8 @@ class Resizer(object):
 
         # resize the image with the computed scale
         image = skimage.transform.resize(image, (int(round(rows*scale)), int(round((cols*scale)))))
-        # rows, cols, ens = image.shape
-
-        # pad_w = 32 - rows%32
-        # pad_h = 32 - cols%32
-
-        # new_image = np.zeros((rows + pad_w, cols + pad_h, cns)).astype(np.float32)
-
-        # new_image[:rows, :cols, :] = image.astype(np.float32)
 
         annots[:, :4] *= scale
-
-        # return {'img': torch.from_numpy(new_image), 'annot': torch.from_numpy(annots), 'scale': scale}
 
         return {'img': torch.from_numpy(image),
                 'annot': torch.from_numpy(annots),
